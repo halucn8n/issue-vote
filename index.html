@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오늘의 이슈 투표</title>
+  <meta property="og:title" content="오늘의 이슈 투표" />
+  <meta property="og:description" content="세계 현안에 나의 한 표를! 로그인 없이 바로 참여하세요." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --surface2: #1f1f1f;
+      --border: rgba(255,255,255,0.08);
+      --border2: rgba(255,255,255,0.14);
+      --text: #f0f0f0;
+      --text2: #888;
+      --text3: #555;
+      --pro: #4ade80;
+      --pro-bg: rgba(74,222,128,0.08);
+      --pro-border: rgba(74,222,128,0.25);
+      --con: #f87171;
+      --con-bg: rgba(248,113,113,0.08);
+      --con-border: rgba(248,113,113,0.25);
+      --accent: #facc15;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 헤더 */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 2px;
+      color: var(--accent);
+    }
+    .logo span { color: var(--text2); font-size: 13px; font-family: 'Noto Sans KR', sans-serif; letter-spacing: 0; margin-left: 8px; font-weight: 400; }
+    .id-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--text2);
+    }
+    .id-chip b { color: var(--text); font-weight: 500; }
+
+    /* 메인 */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .card {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    /* 로딩 */
+    .loading {
+      text-align: center;
+      padding: 4rem 0;
+      color: var(--text2);
+      font-size: 14px;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 이슈 카드 */
+    .issue-wrap {
+      animation: fadeUp 0.4s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .issue-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .tag {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 11px;
+      color: var(--text2);
+      letter-spacing: 0.5px;
+    }
+    .date-label {
+      font-size: 11px;
+      color: var(--text3);
+    }
+    .issue-title {
+      font-size: clamp(20px, 4vw, 26px);
+      font-weight: 700;
+      line-height: 1.4;
+      margin-bottom: 24px;
+      word-break: keep-all;
+    }
+
+    /* 찬반 논거 */
+    .args {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 480px) {
+      .args { grid-template-columns: 1fr; }
+    }
+    .arg-box {
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .arg-pro {
+      background: var(--pro-bg);
+      border: 1px solid var(--pro-border);
+      color: #86efac;
+    }
+    .arg-con {
+      background: var(--con-bg);
+      border: 1px solid var(--con-border);
+      color: #fca5a5;
+    }
+    .arg-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      opacity: 0.8;
+    }
+
+    /* 투표 버튼 */
+    .vote-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .vote-btn {
+      padding: 14px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      border: 1px solid;
+      transition: transform 0.1s, opacity 0.15s;
+      letter-spacing: -0.3px;
+    }
+    .vote-btn:hover { opacity: 0.85; transform: translateY(-1px); }
+    .vote-btn:active { transform: scale(0.98); }
+    .btn-pro {
+      background: var(--pro-bg);
+      color: var(--pro);
+      border-color: var(--pro-border);
+    }
+    .btn-con {
+      background: var(--con-bg);
+      color: var(--con);
+      border-color: var(--con-border);
+    }
+
+    /* 결과 */
+    .result-wrap { margin-bottom: 20px; }
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .result-label { width: 32px; font-weight: 700; }
+    .result-label.pro { color: var(--pro); }
+    .result-label.con { color: var(--con); }
+    .bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }
+    .bar-pro { background: var(--pro); }
+    .bar-con { background: var(--con); }
+    .result-pct { width: 36px; text-align: right; color: var(--text2); }
+    .result-total {
+      font-size: 12px;
+      color: var(--text3);
+      text-align: center;
+      margin-top: 4px;
+    }
+    .my-vote-badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 8px;
+      vertical-align: middle;
+      font-weight: 400;
+    }
+    .my-vote-pro { background: var(--pro-bg); color: var(--pro); border: 1px solid var(--pro-border); }
+    .my-vote-con { background: var(--con-bg); color: var(--con); border: 1px solid var(--con-border); }
+
+    /* 하단 버튼들 */
+    .bottom-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .kakao-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #FEE500;
+      color: #3C1E1E;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Noto Sans KR', sans-serif;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .kakao-btn:hover { opacity: 0.88; }
+    .new-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      font-size: 13px;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .new-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+
+    /* 에러 */
+    .error-msg {
+      text-align: center;
+      padding: 3rem 0;
+      color: var(--text2);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .retry-btn {
+      margin-top: 1rem;
+      padding: 8px 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+    }
+
+    /* 푸터 */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text3);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ISSUEVOTE <span>오늘의 이슈</span></div>
+  <div class="id-chip">
+    🔒 <b id="my-ko-id">로딩중...</b>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div id="content">
+      <div class="loading">
+        <div class="spinner"></div>
+        이슈를 불러오는 중...
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  브라우저 핑거프린트로 중복 투표를 방지합니다 · 개인정보는 수집하지 않습니다
+</footer>
+
+<script>
+  // ── 설정 ──────────────────────────────────────────────
+  const SUPABASE_URL = 'https://vqyxrlarckplyptkclcf.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_Ht3bfAPzP5daPM4dyN9XWQ_MZXacWqG';
+  const ANTHROPIC_KEY_NOTE = '※ Anthropic API 키는 서버(Vercel Edge Function)에서 호출해야 합니다.';
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ── 한글 ID ───────────────────────────────────────────
+  const ADJ  = ['빠른','느린','조용한','시끄러운','밝은','어두운','차가운','따뜻한','작은','큰','날카로운','부드러운','무거운','가벼운','깊은','얕은','용감한','겁많은','현명한','어리석은','행복한','슬픈','강한','약한','신비한'];
+  const NOUN = ['고양이','강아지','토끼','여우','곰','늑대','독수리','참새','고래','상어','호랑이','사자','판다','코끼리','기린','펭귄','다람쥐','수달','문어','하마'];
+  const NUM  = ['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15','16','17','18','19','20'];
+
+  function fpToKoId(fp) {
+    let h = 0;
+    for (let i = 0; i < fp.length; i++) h = Math.imul(31, h) + fp.charCodeAt(i) | 0;
+    h = Math.abs(h);
+    return ADJ[h % ADJ.length] + NOUN[Math.floor(h / ADJ.length) % NOUN.length] + NUM[Math.floor(h / (ADJ.length * NOUN.length)) % NUM.length];
+  }
+
+  // ── 상태 ──────────────────────────────────────────────
+  let fpHash = null;
+  let koId   = null;
+  let currentIssue = null;
+
+  // ── 핑거프린트 ────────────────────────────────────────
+  async function initFP() {
+    try {
+      const fp = await FingerprintJS.load();
+      const r  = await fp.get();
+      fpHash = r.visitorId;
+    } catch(e) {
+      fpHash = 'fb_' + navigator.userAgent.length + screen.width + screen.colorDepth + navigator.language;
+    }
+    koId = fpToKoId(fpHash);
+    document.getElementById('my-ko-id').textContent = koId;
+  }
+
+  // ── AI 이슈 생성 (Vercel Edge Function 호출) ──────────
+  async function fetchIssue() {
+    // Vercel 배포 후 /api/issue 엔드포인트가 Anthropic API를 호출합니다.
+    // 로컬 테스트용 fallback 이슈를 사용합니다.
+    try {
+      const res = await fetch('/api/issue');
+      if (!res.ok) throw new Error('api error');
+      return await res.json();
+    } catch(e) {
+      // fallback: 샘플 이슈
+      const samples = [
+        { tag: '기술·AI', title: 'AI가 인간의 일자리를 대체해야 할까?', pro_arg: 'AI 도입으로 생산성이 극적으로 향상되고 인류는 더 창의적인 일에 집중할 수 있습니다. 역사적으로 기술 혁신은 새로운 직업을 만들어왔습니다.', con_arg: '전환 과정에서 수억 명이 실직할 수 있으며, 재교육 속도가 기술 발전을 따라가지 못할 가능성이 큽니다. 사회적 불평등이 심화될 우려가 있습니다.' },
+        { tag: '환경', title: '원자력 발전을 확대해야 할까?', pro_arg: '원자력은 탄소 배출 없이 대규모 전력을 안정적으로 공급할 수 있는 현실적인 에너지원입니다. 기후 위기 대응에 필수적이라는 주장이 힘을 얻고 있습니다.', con_arg: '핵폐기물 처리 문제가 수천 년간 지속되며, 사고 발생 시 피해가 광범위합니다. 재생에너지 기술이 빠르게 발전하고 있어 굳이 위험을 감수할 필요가 없다는 시각도 있습니다.' },
+        { tag: '사회', title: '주 4일 근무제를 도입해야 할까?', pro_arg: '여러 국가의 시범 도입 결과 생산성이 유지되거나 오히려 향상되었습니다. 노동자의 삶의 질 개선과 번아웃 방지에 효과적입니다.', con_arg: '서비스업·의료 등 업종에서는 적용이 어렵고, 임금 감소나 업무 강도 증가로 이어질 수 있습니다. 기업 경쟁력 약화를 우려하는 목소리도 있습니다.' },
+      ];
+      return samples[Math.floor(Math.random() * samples.length)];
+    }
+  }
+
+  // ── Supabase: 이슈 저장 또는 조회 ────────────────────
+  async function getOrCreateIssue(issueData) {
+    const today = new Date().toISOString().slice(0, 10);
+    // 오늘 이슈가 있으면 재사용
+    const { data: existing } = await sb
+      .from('issues')
+      .select('*')
+      .gte('created_at', today + 'T00:00:00')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (existing && existing.length > 0) return existing[0];
+
+    // 없으면 새로 저장
+    const { data: created, error } = await sb
+      .from('issues')
+      .insert({ title: issueData.title, tag: issueData.tag, pro_arg: issueData.pro_arg, con_arg: issueData.con_arg })
+      .select()
+      .single();
+    if (error) throw error;
+    return created;
+  }
+
+  // ── Supabase: 투표 수 조회 ────────────────────────────
+  async function getVoteCounts(issueId) {
+    const { data } = await sb.from('votes').select('side').eq('issue_id', issueId);
+    const pro = (data || []).filter(v => v.side === 'pro').length;
+    const con = (data || []).filter(v => v.side === 'con').length;
+    return { pro, con };
+  }
+
+  // ── Supabase: 내 투표 여부 ────────────────────────────
+  async function getMyVote(issueId) {
+    const { data } = await sb.from('votes').select('side').eq('issue_id', issueId).eq('fp_hash', fpHash).maybeSingle();
+    return data ? data.side : null;
+  }
+
+  // ── Supabase: 투표 등록 ───────────────────────────────
+  async function submitVote(issueId, side) {
+    const { error } = await sb.from('votes').insert({ issue_id: issueId, ko_id: koId, fp_hash: fpHash, side });
+    if (error) throw error;
+  }
+
+  // ── 렌더링 ────────────────────────────────────────────
+  function renderIssue(issue, counts, myVote) {
+    const total  = counts.pro + counts.con;
+    const proPct = total ? Math.round(counts.pro / total * 100) : 50;
+    const conPct = 100 - proPct;
+    const voted  = !!myVote;
+    const today  = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+
+    document.getElementById('content').innerHTML = `
+      <div class="issue-wrap">
+        <div class="issue-meta">
+          <span class="tag">${issue.tag}</span>
+          <span class="date-label">${today}</span>
+        </div>
+        <div class="issue-title">
+          ${issue.title}
+          ${voted ? `<span class="my-vote-badge ${myVote === 'pro' ? 'my-vote-pro' : 'my-vote-con'}">${myVote === 'pro' ? '👍 찬성' : '👎 반대'}</span>` : ''}
+        </div>
+        <div class="args">
+          <div class="arg-box arg-pro">
+            <div class="arg-label">👍 찬성 측 논거</div>
+            ${issue.pro_arg}
+          </div>
+          <div class="arg-box arg-con">
+            <div class="arg-label">👎 반대 측 논거</div>
+            ${issue.con_arg}
+          </div>
+        </div>
+
+        ${voted ? `
+          <div class="result-wrap">
+            <div class="result-row">
+              <span class="result-label pro">찬성</span>
+              <div class="bar-track"><div class="bar-fill bar-pro" style="width:${proPct}%"></div></div>
+              <span class="result-pct">${proPct}%</span>
+            </div>
+            <div class="result-row">
+              <span class="result-label con">반대</span>
+              <div class="bar-track"><div class="bar-fill bar-con" style="width:${conPct}%"></div></div>
+              <span class="result-pct">${conPct}%</span>
+            </div>
+            <div class="result-total">총 ${total.toLocaleString()}명 참여</div>
+          </div>
+        ` : `
+          <div class="vote-btns">
+            <button class="vote-btn btn-pro" onclick="castVote('pro')">👍 찬성</button>
+            <button class="vote-btn btn-con" onclick="castVote('con')">👎 반대</button>
+          </div>
+        `}
+
+        <div class="bottom-btns">
+          <button class="kakao-btn" onclick="shareKakao()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#3C1E1E"><path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.667 1.622 5.01 4.09 6.38L5.09 20l4.29-2.29C10.12 17.9 11.05 18 12 18c5.523 0 10-3.477 10-7.5S17.523 3 12 3z"/></svg>
+            카카오톡 공유
+          </button>
+          <button class="new-btn" onclick="loadNew()">🔄 다른 이슈</button>
+        </div>
+      </div>`;
+  }
+
+  // ── 투표 처리 ─────────────────────────────────────────
+  async function castVote(side) {
+    if (!currentIssue) return;
+    const btns = document.querySelectorAll('.vote-btn');
+    btns.forEach(b => b.disabled = true);
+    try {
+      await submitVote(currentIssue.id, side);
+      const counts = await getVoteCounts(currentIssue.id);
+      renderIssue(currentIssue, counts, side);
+    } catch(e) {
+      if (e.code === '23505') {
+        alert('이미 투표하셨습니다!');
+      } else {
+        alert('투표 중 오류가 발생했어요. 다시 시도해주세요.');
+        btns.forEach(b => b.disabled = false);
+      }
+    }
+  }
+
+  // ── 카카오 공유 ───────────────────────────────────────
+  function shareKakao() {
+    const text = encodeURIComponent(`[오늘의 이슈 투표]\n"${currentIssue?.title || ''}"\n\n여러분의 생각은? 👇`);
+    const url  = encodeURIComponent(window.location.href);
+    window.open(`https://open.kakao.com/o/share?text=${text}&url=${url}`, '_blank');
+  }
+
+  // ── 새 이슈 로드 ──────────────────────────────────────
+  async function loadNew() {
+    document.getElementById('content').innerHTML = `<div class="loading"><div class="spinner"></div>이슈를 불러오는 중...</div>`;
+    try {
+      const issueData = await fetchIssue();
+      // 강제로 새 이슈 삽입
+      const { data: created, error } = await sb
+        .from('issues')
+        .insert({ title: issueData.title, tag: issueData.tag, pro_arg: issueData.pro_arg, con_arg: issueData.con_arg })
+        .select()
+        .single();
+      if (error) throw error;
+      currentIssue = created;
+      const counts = await getVoteCounts(currentIssue.id);
+      const myVote = await getMyVote(currentIssue.id);
+      renderIssue(currentIssue, counts, myVote);
+    } catch(e) {
+      document.getElementById('content').innerHTML = `
+        <div class="error-msg">
+          이슈를 불러오지 못했어요 😢<br>
+          <small style="color:var(--text3)">${e.message}</small><br>
+          <button class="retry-btn" onclick="init()">다시 시도</button>
+        </div>`;
+    }
+  }
+
+  // ── 초기화 ────────────────────────────────────────────
+  async function init() {
+    document.getElementById('content').innerHTML = `<div class="loading"><div class="spinner"></div>준비 중...</div>`;
+    await initFP();
+    try {
+      const issueData = await fetchIssue();
+      currentIssue = await getOrCreateIssue(issueData);
+      const counts  = await getVoteCounts(currentIssue.id);
+      const myVote  = await getMyVote(currentIssue.id);
+      renderIssue(currentIssue, counts, myVote);
+    } catch(e) {
+      document.getElementById('content').innerHTML = `
+        <div class="error-msg">
+          연결에 실패했어요 😢<br>
+          <small style="color:var(--text3)">${e.message}</small><br>
+          <button class="retry-btn" onclick="init()">다시 시도</button>
+        </div>`;
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>
